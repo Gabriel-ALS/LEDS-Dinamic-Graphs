@@ -1,0 +1,265 @@
+---
+title: "Gráficos Dinâmicos"
+author: "Gabriel Augusto L. Silva &  Lohã Luiz Correa"
+editor: visual
+format:
+  revealjs:
+    slideNumber: true
+    title-slide-attributes:
+      data-background-image: "Logo LEDS.png"
+      data-background-size: "10%" 
+      data-background-position: "center bottom"
+---
+
+## Introdução
+
+**Nesta apresentação, exploraremos a biblioteca `gganimate` e como ela pode ser utilizada para criar gráficos dinâmicos.** Através dela, demonstraremos o processo de desenvolvimento de gráficos que exibem uma progressão ao longo de determinadas situações, como variações temporais, mudanças climáticas, ou outras variáveis que evoluem com o tempo.
+
+## Gganimate e ggplot2
+
+**É importante lembrar que o `gganimate` tem o papel de transformar gráficos estáticos em gráficos mais "vivos".** No entanto, para que esses gráficos dinâmicos sejam criados, é essencial ter um conhecimento prévio sobre a criação de gráficos estáticos. Por isso, utilizaremos a biblioteca `ggplot2` como base para a criação dos exemplos que serão animados.
+
+Para acessar mais informações sobre as bibliotecas acesse:
+
+-   Gganimate: <https://gganimate.com/>
+-   Ggplot2: <https://ggplot2.tidyverse.org/>
+
+## Bar chart Race
+
+<div style="font-size: 35px;">
+
+**O primeiro tipo de gráfico que apresentaremos é o "Bar Chart Race", ou simplesmente a "Corrida de Gráficos de Barras".** Esse tipo de gráfico é bastante conhecido, e você provavelmente já deve ter visto um em algum momento. Ele ilustra o comportamento de uma variável categórica em função de uma variável contínua ao longo do tempo.
+
+Nesta apresentação, utilizaremos como exemplo o PIB dos países da América do Sul ao longo dos anos (1960-2021). No próximo slide, você poderá observar o código utilizado para criar este gráfico.
+
+Banco de dados: <https://www.kaggle.com/datasets/fredericksalazar/pib-gdp-global-by-countries-since-1960-to-2021>
+
+<div>
+
+## Código
+
+```{r librarys, echo=FALSE, warning= FALSE, message=FALSE}
+library(ggplot2)
+library(tidyverse)
+library(gganimate)
+library(scales)
+library(RColorBrewer)
+library(readr)
+library(lubridate)
+
+```
+
+```{r bar_race, echo=TRUE, warning=FALSE}
+
+#Importar o banco de dados
+pib_mundo <- read.csv2("countries_gdp_hist.csv")
+
+#Dar uma olhada no banco de dados com str(), length(), sumary(), head()
+
+#Queremos olhar para o Pib dos paises da America do Sul ao longo dos anos,
+#então vamos utilizar a coluna year(), total_gdp_million, intermediate_region
+#e country_name
+
+#Aqui filtramos só o que utilizariamos do banco de dados
+america_do_sul <- pib_mundo[pib_mundo$intermediate_region == "South America",
+                            c("year","total_gdp_million","country_name")]
+
+#Unique para ver se o nome dos paises está certo, e também precisamos
+#transformar em factor e numeric algumas colunas.
+
+america_do_sul <- america_do_sul %>%
+  mutate(country_name = recode(country_name,
+                               "Venezuela (Bolivarian Republic of)"
+                               = "Venezuela",
+                               "Bolivia (Plurinational State of)" =
+                                  "Bolivia"))
+america_do_sul$country_name <- factor(america_do_sul$country_name)
+america_do_sul$total_gdp_million <- as.numeric((america_do_sul$total_gdp_million))
+
+
+#Rank dos maiores PIBs para que quando mude o ano os paises subam e desçam
+america_do_sul <- america_do_sul %>%
+  arrange(year, desc(total_gdp_million)) %>%
+  group_by(year) %>%
+  mutate(rank = factor(row_number())) %>%
+  ungroup()
+
+america_do_sul$rank <-  as.numeric(america_do_sul$rank)
+
+#Criar o grafico no GGplot2
+
+grafico <- ggplot(america_do_sul, aes(x= factor(-rank),
+                                      y = total_gdp_million,
+                                      fill = country_name)) + 
+  geom_bar(stat = "identity") + #tipo de gráfico
+  coord_flip(clip = "off") + #Invertendo os eixos
+  geom_text(aes(y = 0, label = paste(country_name, " ")),
+            vjust = 0.5, hjust = 1.5, size = 4)+
+  labs(title = "PIB do País em: {closest_state}", #titulos 
+       x = "", y = "Milhões",
+       fill = "Países") +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), #tirando a grid
+        plot.margin = margin(10, 30, 10, 80)) + #ajustando margens
+  scale_x_discrete(labels = function(x) NULL) +
+  scale_y_continuous(labels = comma) +
+  scale_fill_manual(values =colorRampPalette(c("#146cb4","#046434",
+                                               "#1ab2a3"))(12)) + #paletas 
+  
+transition_states(year, #código do gganimate para animar 
+  state_length = 5,
+  transition_length = 2
+) +
+  view_follow(fixed_x = TRUE) + #ajustar o gráfico com base no maior valor
+  ease_aes('linear') 
+animate(grafico, nframes = 122,
+        renderer = gifski_renderer(),fps = 5) # organizando os frames
+
+anim_save("PIB.gif") #salvando em gif
+
+
+```
+
+## Gráfico
+
+```{r grafico, warning=FALSE, echo=FALSE, fig.align='center'}
+
+knitr::include_graphics("PIB.gif")
+
+
+```
+
+## Outros tipos
+
+No exemplo anterior, apresentamos um estilo de gráfico bem conhecido. Seguindo o mesmo raciocínio, podemos criar versões mais simples, como o exemplo mostrado a seguir:
+
+```{r outros,echo=FALSE, warning=FALSE}
+
+dados <- read.csv("aids14a23.csv", sep = ";",dec=".")
+
+
+dados$ANTRELSE_N <- factor(dados$ANTRELSE_N)
+
+dados <- dados %>%
+  mutate(ANTRELSE_N = recode(ANTRELSE_N,
+                             "1" = "Homens",
+                             "2" = "Mulheres",
+                             "3" = "Ambos"
+  ))
+
+#Criando o gráfico por ggplot2
+
+q <- ggplot(dados, aes(x= ANTRELSE_N, fill = ANTRELSE_N)) + 
+  geom_bar(position=position_dodge(0.5) ) +
+  labs(title = "Total de infectados por relação (Ano: {closest_state})",
+       x = "", y = "Quantidade relatada",
+       fill = "Sexo dos(as) parceiros(as)")  +
+  theme( plot.title = element_text(hjust = 0.5),
+         axis.text.x = element_text(size = 12),
+         panel.grid.major = element_line(size = 0.5,
+                                         color = "lightblue",
+                                         linetype = "dashed"),
+         
+         panel.grid.minor = element_line(size = 0.5,
+                                         color = "lightblue",
+                                         linetype = "dashed") 
+  ) +
+  scale_fill_manual(values = c("#146cb4","#1ab2a3","#046434")) +
+  
+  
+  #Parte do gganimate
+  transition_states(
+    dados$NU_ANO,
+    transition_length = 10,
+    state_length = 1
+  )
+
+```
+
+```{r outrosgraficos,warning=FALSE, echo=FALSE,fig.align='center'}
+q
+```
+
+## Séries Temporais
+
+O Sistema Único de Saúde (SUS) é o maior sistema de saúde do mundo, e disponibiliza dados sobre seus usuários relacionados a variáveis sociodemográficas, como escolaridade e etnia, bem como a informações médicas específicas. A seguir, apresentamos uma análise da epidemia de AIDS no estado do Espírito Santo, destacando tanto valores absolutos quanto medidas estatísticas específicas, como a incidência relativa. Selecionamos quatro gráficos de linhas para ilustrar diferentes aspectos do comportamento da doença ao longo do tempo. Além disso, o banco de dados forneceu um pouco mais de 3100 observações para este estudo.
+
+## Gráfico - Casos por sexo
+
+```{r casos_por_sexo, warning=FALSE, echo=FALSE, fig.align='center'}
+
+knitr::include_graphics("dados_series_temporais/casos_AIDS_sexo.gif")
+
+
+```
+
+## Gráfico - Casos por sexo:
+
+A quantidade de casos de AIDS é maior entre os homens em comparação com as mulheres. No entanto, no meio de 2014, a diferença entre os sexos diminuiu, com números de casos aproximando-se para ambos. Esse padrão de equidade entre os sexos foi observado novamente no início e no final de 2015. Apesar de essa tendência ter se repetido ao longo de nove anos (2014 a 2022), o início de 2022 mostrou uma predominância de casos entre os homens.
+
+## Gráfico 2 - Incidência por sexo:
+
+```{r incidencia_por_sexo, warning=FALSE, echo=FALSE, fig.align='center'}
+
+knitr::include_graphics("dados_series_temporais/incidencia_AIDS_incid_sexo.gif")
+```
+
+## Gráfico 2 - Incidência por sexo:
+
+Considerando a incidência relativa de cem mil habitantes, houve uma diminuição geral da taxa de infecção entre 2014 e 2015 para ambos os sexos. Em 2016, a incidência aumentou para as mulheres, mas caiu no ano seguinte para ambos os sexos. Entre 2019 e 2020, a taxa de incidência reduziu significativamente para os homens, de oito para três casos, mas subiu novamente em 2021.
+
+## Gráfico 3 - Casos por orientação sexual:
+
+```{r casos_orientacao, warning=FALSE, echo=FALSE, fig.align='center'}
+
+knitr::include_graphics("dados_series_temporais/casos_AIDS_orientacao.gif")
+
+```
+
+## Gráfico 3 - Casos por orientação sexual:
+
+<div style="font-size: 35px;">
+
+Entre 2014 e 2022, a AIDS atingiu predominantemente os heterossexuais, seguidos por homossexuais e bissexuais. O número de casos foi mais elevado em 2014, com aproximadamente 80 infectados. Desde então, houve uma queda progressiva para o grupo heterossexual. Em 2016, os grupos homossexual e bissexual apresentaram o mesmo número absoluto de casos, cerca de três. Durante a pandemia de 2020, houve um período breve em que o número de infectados foi igual para heterossexuais e homossexuais, mas logo voltou a ser mais elevado entre os heterossexuais. De 2021 até o final de 2022, a quantidade de infectados se manteve abaixo de vinte, indicando uma maior estabilidade no controle da doença.
+
+<div>
+
+## Gráfico 4 - Incidência por orientação sexual:
+
+```{r incidencia_orientacao, warning=FALSE, echo=FALSE, fig.align='center'}
+
+knitr::include_graphics("dados_series_temporais/incidencia_AIDS_incid_orientacao.gif")
+
+```
+
+## Gráfico 4 - Incidência por orientação sexual:
+
+No que se refere à incidência (por cem mil habitantes), o grupo heterossexual viu uma queda de 10 para 4 casos entre 2014 e 2017. Para os homossexuais, a taxa não ultrapassou 4 casos por cem mil habitantes desde o início do estudo e tem mostrado uma tendência de queda contínua. O mesmo padrão é observado para o grupo bissexual, que não superou 2 casos desde o início da pesquisa.
+
+## Conclusão
+
+A análise dos dados sobre a epidemia de AIDS no Espírito Santo revela um quadro complexo e dinâmico da doença. Embora a prevalência tenha sido historicamente maior entre os homens e heterossexuais, a incidência tem mostrado uma tendência de queda, especialmente nos últimos anos. Os dados indicam uma estabilização e, em alguns casos, uma redução significativa no número de casos em diversos grupos. Esses padrões sugerem avanços no controle da doença, mas também ressaltam a importância contínua de monitoramento e intervenção para manter e melhorar a saúde pública.
+
+## Referências
+
+-   <https://app.flourish.studio/>@flourish/bar-chart-race
+
+-   <https://www.youtube.com/>@SiddhaRajBhatta
+
+## Pacotes
+
+-   GGanimate
+
+-   GGplot2
+
+-   Lubridade
+
+-   Tidyverse
+
+-   Scales
+
+-   Readr
+
+-   RColorBrewer
+
+## 
